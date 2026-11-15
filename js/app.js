@@ -1,10 +1,10 @@
 // Lingcam: the photo booth app
-import { C, CUTS, cutById, FRAMES, frameById, FRAME_CATS, SWATCHES, FILTERS, filterById, STICKER_CATS, STICKERS, FONTS, fontById, INKS } from './data.js';
+import { C, CUTS, cutById, geom, FRAMES, frameById, FRAME_CATS, SWATCHES, FILTERS, filterById, STICKER_CATS, STICKERS, FONTS, fontById, INKS } from './data.js';
 import { loadImg, stickerImg, readyStickers, readyPics, fontsReady, filtered, drawBase, drawInk, drawItem, itemBox, renderStrip, renderPost, renderPrint, makeGif, toBlob, dateText } from './render.js';
 import { Strips, Settings, MyStickers } from './store.js';
 import * as N from './native.js';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -65,7 +65,7 @@ function miniStrip(n, bg, t0, cls = '', ink = C.muted) {
 }
 // small picture of a strip layout with placeholder or real photos
 function thumb(p, maxW, maxH, imgs = []) {
-  const cut = cutById(p.cut), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const cut = geom(p), dpr = Math.min(2, window.devicePixelRatio || 1);
   const sc = Math.min(maxW / cut.W, maxH / cut.H);
   const cv = document.createElement('canvas'); cv.width = Math.round(cut.W * sc * dpr); cv.height = Math.round(cut.H * sc * dpr);
   cv.style.width = Math.round(cut.W * sc) + 'px'; cv.style.height = Math.round(cut.H * sc) + 'px';
@@ -357,7 +357,7 @@ const E = {
 };
 const SNAP_KEYS = ['items', 'strokes', 'frame', 'frameColor', 'filter', 'showName', 'showDate', 'rounded', 'caption'];
 function snap() { const p = S.p; E.undo.push(JSON.stringify(SNAP_KEYS.map((k) => p[k]))); if (E.undo.length > 60) E.undo.shift(); E.redo = []; undoBtns(); }
-function restore(json) { const v = JSON.parse(json); SNAP_KEYS.forEach((k, i) => (S.p[k] = v[i])); E.sel = -1; rebuildBase(); renderPane(); }
+function restore(json) { const v = JSON.parse(json); SNAP_KEYS.forEach((k, i) => (S.p[k] = v[i])); E.sel = -1; E.head = geom(S.p).head || 0; rebuildBase(); renderPane(); }
 function doUndo() { if (!E.undo.length) return; E.redo.push(JSON.stringify(SNAP_KEYS.map((k) => S.p[k]))); restore(E.undo.pop()); undoBtns(); }
 function doRedo() { if (!E.redo.length) return; E.undo.push(JSON.stringify(SNAP_KEYS.map((k) => S.p[k]))); restore(E.redo.pop()); undoBtns(); }
 function undoBtns() { const u = $('#undo'), r = $('#redoB'); if (u) u.disabled = !E.undo.length; if (r) r.disabled = !E.redo.length; }
@@ -371,9 +371,9 @@ SCREENS.decorate = () => {
   <div class="panel"><div class="pane" id="pane"></div>
   <div class="tools" role="tablist">${[['stickers', 'sticker', 'Stickers'], ['text', 'text', 'Text'], ['draw', 'pen', 'Draw'], ['frame', 'frame', 'Frame'], ['filter', 'filter', 'Filter']].map(([t, i, l]) => `<button role="tab" data-tab="${t}" aria-pressed="${E.tab === t}" aria-selected="${E.tab === t}">${ic(i)}<span>${l}</span></button>`).join('')}</div>
   <button class="btn block" id="fin">Done</button></div></div></section>`;
-  const cut = cutById(p.cut); const cv = $('#stage'); cv.width = cut.W; cv.height = cut.H; E.cv = cv; E.ctx = cv.getContext('2d');
-  const fit = () => { const w = $('#sw'); if (!w) return; const W = w.clientWidth - 36, H = w.clientHeight - 20; const s = Math.min(W / cut.W, H / cut.H); cv.style.width = Math.floor(cut.W * s) + 'px'; cv.style.height = Math.floor(cut.H * s) + 'px'; E.css = s; applyView(); draw(); };
-  window.addEventListener('resize', fit);
+  let cut = geom(p); const cv = $('#stage'); cv.width = cut.W; cv.height = cut.H; E.cv = cv; E.ctx = cv.getContext('2d'); E.head = cut.head || 0;
+  const fit = () => { const w = $('#sw'); if (!w) return; cut = geom(S.p); const W = w.clientWidth - 36, H = w.clientHeight - 20; const s = Math.min(W / cut.W, H / cut.H); cv.style.width = Math.floor(cut.W * s) + 'px'; cv.style.height = Math.floor(cut.H * s) + 'px'; E.css = s; applyView(); draw(); };
+  window.addEventListener('resize', fit); E.fit = fit;
   const key = (e) => {
     if (e.target.matches('input, textarea')) return;
     if ((e.key === 'Delete' || e.key === 'Backspace') && E.sel >= 0) { e.preventDefault(); delSel(); }
@@ -420,7 +420,13 @@ function zoomBy(f, cx, cy) {
 }
 
 function rebuildBase() {
-  const p = S.p, cut = cutById(p.cut);
+  const p = S.p, cut = geom(p), head = cut.head || 0;
+  if (E.head !== head) { // frame with a header: move stickers and drawing with the photos
+    const d = head - (E.head || 0);
+    p.items.forEach((it) => (it.y += d)); p.strokes.forEach((st) => st.pts.forEach((q) => (q[1] += d)));
+    E.head = head;
+  }
+  if (E.cv && (E.cv.width !== cut.W || E.cv.height !== cut.H)) { E.cv.width = cut.W; E.cv.height = cut.H; if (E.fit) requestAnimationFrame(E.fit); }
   const b = E.base || document.createElement('canvas'); b.width = cut.W; b.height = cut.H;
   drawBase(b.getContext('2d'), p, E.imgs); E.base = b; draw();
 }
@@ -428,7 +434,7 @@ const easeBack = (t) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3)
 let popRaf = 0;
 function draw() {
   const p = S.p, x = E.ctx; if (!x || !E.base) return;
-  const cut = cutById(p.cut); x.clearRect(0, 0, cut.W, cut.H); x.drawImage(E.base, 0, 0);
+  const cut = geom(p); x.clearRect(0, 0, cut.W, cut.H); x.drawImage(E.base, 0, 0);
   drawInk(x, p, cut.W, cut.H, E.ink);
   const now = performance.now(); let anim = false;
   p.items.forEach((it) => {
@@ -524,7 +530,7 @@ function bindStage(cv) {
 }
 function delSel() { if (E.sel < 0) return; snap(); S.p.items.splice(E.sel, 1); E.sel = -1; draw(); renderPane(); }
 function addItem(it) {
-  const p = S.p, cut = cutById(p.cut); snap();
+  const p = S.p, cut = geom(p); snap();
   const n = p.items.length;
   if (it.x == null) { // place it where the person is looking when zoomed in
     const w = $('#sw').getBoundingClientRect(), r = E.cv.getBoundingClientRect();

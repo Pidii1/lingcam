@@ -1,5 +1,5 @@
 // Lingcam drawing: turns a project (cut + frame + photos + decorations) into a picture
-import { cutById, frameById, filterById, STICKERS, FONTS, fontById, roundRect, C, stk, readyAllStickers } from './data.js';
+import { cutById, geom, frameById, filterById, STICKERS, FONTS, fontById, roundRect, C, stk, readyAllStickers } from './data.js';
 
 const imgCache = new Map();
 export function loadImg(src) {
@@ -69,19 +69,24 @@ function isDark(hex) {
 
 // base = frame + photos + footer (no decorations). Cached by the editor while dragging.
 export function drawBase(ctx, p, imgs) {
-  const cut = cutById(p.cut), fr = frameById(p.frame), s = cut.W / 600;
+  const cut = geom(p), fr = frameById(p.frame), s = cut.W / 600;
   ctx.save();
   if (p.frameColor) { ctx.fillStyle = p.frameColor; ctx.fillRect(0, 0, cut.W, cut.H); } else fr.bg(ctx, cut.W, cut.H, s);
   const rad = p.rounded ? 22 * s : 0;
+  const styled = !p.frameColor;
   cut.cells.forEach((c, i) => {
+    if (styled && fr.under) { ctx.save(); fr.under(ctx, c, s, i, cut); ctx.restore(); }
     ctx.save();
-    if (rad) { roundRect(ctx, c.x, c.y, c.w, c.h, rad); ctx.clip(); }
+    if (styled && fr.clip) { fr.clip(ctx, c, s, i); ctx.clip(); }
+    else if (rad) { roundRect(ctx, c.x, c.y, c.w, c.h, rad); ctx.clip(); }
     const img = imgs[i];
     if (img) cover(ctx, filtered(img, p.filter), c.x, c.y, c.w, c.h);
     else { ctx.fillStyle = p.frameColor ? 'rgba(0,0,0,.12)' : fr.cell; ctx.fillRect(c.x, c.y, c.w, c.h); }
     ctx.restore();
+    if (styled && fr.cellOver) { ctx.save(); fr.cellOver(ctx, c, s, i, p, cut); ctx.restore(); }
   });
-  if (fr.deco && !p.frameColor) { if (!fr._d || fr._d.cut !== cut.id) fr._d = { cut: cut.id, fn: fr.deco(cut) }; fr._d.fn(ctx, s); }
+  if (fr.deco && styled) { if (!fr._d || fr._d.cut !== cut.id) fr._d = { cut: cut.id, fn: fr.deco(cut) }; fr._d.fn(ctx, s); }
+  if (fr.over && styled) { ctx.save(); fr.over(ctx, cut, s, p); ctx.restore(); }
   // footer: lingcam name + date
   const textCol = p.frameColor ? (isDark(p.frameColor) ? '#fff3c4' : C.ink) : fr.text;
   const last = cut.cells[cut.cells.length - 1];
@@ -151,7 +156,7 @@ export function drawItem(ctx, it) {
 // full picture
 export async function renderStrip(p, scale = 1) {
   await fontsReady();
-  const cut = cutById(p.cut);
+  const cut = geom(p);
   const imgs = await Promise.all(cut.cells.map((_, i) => (p.photos[i] ? loadImg(p.photos[i]) : null)));
   await readyStickers(); await readyPics(p.items);
   const cv = document.createElement('canvas'); cv.width = Math.round(cut.W * scale); cv.height = Math.round(cut.H * scale);
@@ -212,7 +217,7 @@ export async function renderPrint(p) {
   const strip = await renderStrip(p, 1);
   const W = 1200, H = 1800; const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
-  const cut = cutById(p.cut);
+  const cut = geom(p);
   if (cut.kind === 'strip') {
     const sc = Math.min((H - 60) / strip.height, (W / 2 - 40) / strip.width), sw = strip.width * sc, sh = strip.height * sc;
     [W / 4, (3 * W) / 4].forEach((cx) => ctx.drawImage(strip, cx - sw / 2, (H - sh) / 2, sw, sh));
