@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#fff3c4">
+<meta name="description" content="Lingcam: a cute photo booth. Pick a cut, pick a frame, take photos, decorate and share your strip.">
+<title>Lingcam · photo booth</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="img/icon-192.png">
+<link rel="apple-touch-icon" href="img/icon-192.png">
+<meta property="og:title" content="Lingcam · photo booth">
+<meta property="og:description" content="Pick a cut, pick a frame, strike a pose. Decorate and share your strip.">
+<meta property="og:image" content="img/icon-512.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app" class="app">
+  <nav class="side" aria-label="Main">
+    <div class="side-logo"><span class="logo">lingcam<i>.</i></span></div>
+    <button class="side-a" data-nav="home"><svg viewBox="0 0 24 24"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.6"/></svg><span>Booth</span></button>
+    <button class="side-a" data-nav="strips"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/></svg><span>My strips</span></button>
+    <button class="side-a" data-nav="settings"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>Settings</span></button>
+    <p class="side-note">Your photos stay on this device.</p>
+  </nav>
+  <main id="main" class="main"></main>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="flash" class="flash"></div>
+<noscript><p style="padding:24px;font-family:sans-serif">Lingcam needs JavaScript to run.</p></noscript>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

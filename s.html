@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#fff3c4">
+<title>A lingcam strip for you</title>
+<link rel="icon" href="/img/icon-192.png">
+<style>
+@font-face { font-family: Fredoka; font-weight: 700; src: url(/fonts/fredoka-latin-700-normal.woff2) format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 400; src: url(/fonts/dm-sans-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-weight: 700; src: url(/fonts/dm-sans-latin-700-normal.woff2) format('woff2'); }
+body { margin: 0; min-height: 100vh; font-family: 'DM Sans', system-ui, sans-serif; color: #3d2433; background: linear-gradient(180deg, #fff3c4, #fff8ec 45%, #ffd9e5); display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 24px 18px 32px; box-sizing: border-box; }
+.logo { font-family: Fredoka, sans-serif; font-weight: 700; font-size: 30px; } .logo i { font-style: normal; color: #c93a6e; }
+img { max-width: min(92vw, 520px); max-height: 70vh; box-shadow: 0 12px 30px rgba(201,58,110,.22); background: #fff; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+a.btn { min-height: 50px; padding: 0 22px; border-radius: 25px; background: #c93a6e; color: #fff; font-weight: 700; display: inline-flex; align-items: center; text-decoration: none; }
+a.btn.alt { background: #fff; color: #3d2433; }
+p { margin: 0; color: #7a5466; text-align: center; max-width: 420px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<span class="logo">lingcam<i>.</i></span>
+<p id="msg">Loading the strip…</p>
+<img id="pic" alt="A lingcam photo strip" hidden>
+<div class="row" id="acts" hidden><a class="btn" id="dl" download="lingcam-strip.jpg">Save picture</a><a class="btn alt" href="/">Make your own strip</a></div>
+<script>
+(function () {
+  var id = (location.pathname.match(/\/s\/([A-Za-z0-9]{6,12})/) || [])[1] || new URLSearchParams(location.search).get('id');
+  var msg = document.getElementById('msg'), pic = document.getElementById('pic');
+  if (!id) { msg.textContent = 'This link is not complete.'; return; }
+  var src = '/api/share?id=' + encodeURIComponent(id);
+  pic.onload = function () { pic.hidden = false; document.getElementById('acts').hidden = false; msg.textContent = 'Someone shared their lingcam strip with you. The link works for 7 days.'; };
+  pic.onerror = function () { msg.innerHTML = 'This link has expired or does not exist.<br><a href="/" style="color:#c93a6e">Make your own strip</a>'; };
+  pic.src = src; document.getElementById('dl').href = src;
+})();
+</script>
+</body>
+</html>
