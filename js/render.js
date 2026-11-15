@@ -1,5 +1,5 @@
 // Lingcam drawing: turns a project (cut + frame + photos + decorations) into a picture
-import { cutById, frameById, filterById, STICKERS, fontById, roundRect, C } from './data.js';
+import { cutById, frameById, filterById, STICKERS, FONTS, fontById, roundRect, C, stk, readyAllStickers } from './data.js';
 
 const imgCache = new Map();
 export function loadImg(src) {
@@ -9,17 +9,21 @@ export function loadImg(src) {
   if (imgCache.size > 80) imgCache.delete(imgCache.keys().next().value);
   return p;
 }
-const stickerImgs = {};
-export function stickerImg(k) {
-  if (!stickerImgs[k]) { const i = new Image(); i.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(STICKERS[k]); stickerImgs[k] = i; }
-  return stickerImgs[k];
+export const stickerImg = (k) => stk(k);
+export async function readyStickers() { await readyAllStickers(); }
+// pictures used as stickers (imported by the person), kept decoded by their data URL
+const picImgs = new Map();
+export function picImg(src) {
+  let i = picImgs.get(src);
+  if (!i) { i = new Image(); i.src = src; picImgs.set(src, i); if (picImgs.size > 60) picImgs.delete(picImgs.keys().next().value); }
+  return i;
 }
-export async function readyStickers(keys) {
-  await Promise.all(keys.map((k) => { const i = stickerImg(k); return i.complete && i.naturalWidth ? 0 : new Promise((r) => { i.onload = r; i.onerror = r; }); }));
+export async function readyPics(items) {
+  await Promise.all((items || []).filter((it) => it.t === 'image').map((it) => { const i = picImg(it.src); return i.complete && i.naturalWidth ? 0 : new Promise((r) => { i.onload = r; i.onerror = r; }); }));
 }
 export async function fontsReady() {
   try {
-    await Promise.all(['700 20px Fredoka', '600 20px Fredoka', '700 20px Caveat', '400 20px "DM Sans"', '700 20px "DM Sans"', '400 20px "Special Elite"', 'italic 700 20px "Playfair Display"'].map((f) => document.fonts.load(f)));
+    await Promise.all(['700 20px Fredoka', '600 20px Fredoka', '400 20px "DM Sans"', '700 20px "DM Sans"'].concat(FONTS.map((f) => `${f.style || 'normal'} ${f.weight} 20px "${f.css}"`)).map((f) => document.fonts.load(f)));
   } catch (e) {}
 }
 
@@ -125,17 +129,20 @@ export function itemBox(ctx, it) {
     const lh = it.size * 1.15, padX = it.bg ? it.size * 0.45 : it.size * 0.1, padY = it.bg ? it.size * 0.22 : 0.05 * it.size;
     return { w: w + padX * 2, h: lh * lines.length + padY * 2, lines, lh };
   }
+  if (it.t === 'image') { const a = it.ar || 1; return a >= 1 ? { w: it.size, h: it.size / a } : { w: it.size * a, h: it.size }; }
   return { w: it.size, h: it.size };
 }
 export function drawItem(ctx, it) {
   ctx.save(); ctx.translate(it.x, it.y); ctx.rotate(it.r || 0);
-  if (it.t === 'sticker') { const im = stickerImg(it.k); if (im.complete && im.naturalWidth) ctx.drawImage(im, -it.size / 2, -it.size / 2, it.size, it.size); }
+  if (it.t === 'sticker') { const im = stickerImg(it.k); if (im && im.complete && im.naturalWidth) ctx.drawImage(im, -it.size / 2, -it.size / 2, it.size, it.size); }
+  else if (it.t === 'image') { const im = picImg(it.src); if (im.complete && im.naturalWidth) { const b = itemBox(ctx, it); ctx.drawImage(im, -b.w / 2, -b.h / 2, b.w, b.h); } }
   else if (it.t === 'emoji') { ctx.font = `${Math.round(it.size * 0.86)}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(it.ch, 0, it.size * 0.04); }
   else if (it.t === 'text') {
     const b = itemBox(ctx, it);
     if (it.bg) { ctx.fillStyle = it.bg; roundRect(ctx, -b.w / 2, -b.h / 2, b.w, b.h, Math.min(b.h / 2, it.size * 0.5)); ctx.fill(); }
     ctx.font = textFont(it); ctx.fillStyle = it.color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (it.outline) { ctx.lineWidth = it.size * 0.14; ctx.strokeStyle = it.outline; ctx.lineJoin = 'round'; }
+    if (it.outline) { ctx.lineWidth = it.size * 0.16; ctx.strokeStyle = it.outline; ctx.lineJoin = 'round'; }
+    if (it.shadow) { ctx.shadowColor = it.shadow; ctx.shadowOffsetX = it.size * 0.07; ctx.shadowOffsetY = it.size * 0.07; ctx.shadowBlur = 0; }
     b.lines.forEach((l, i) => { const y = -b.h / 2 + (it.bg ? it.size * 0.22 : 0.05 * it.size) + b.lh * (i + 0.5); if (it.outline) ctx.strokeText(l, 0, y); ctx.fillText(l, 0, y); });
   }
   ctx.restore();
@@ -146,7 +153,7 @@ export async function renderStrip(p, scale = 1) {
   await fontsReady();
   const cut = cutById(p.cut);
   const imgs = await Promise.all(cut.cells.map((_, i) => (p.photos[i] ? loadImg(p.photos[i]) : null)));
-  await readyStickers((p.items || []).filter((i) => i.t === 'sticker').map((i) => i.k));
+  await readyStickers(); await readyPics(p.items);
   const cv = document.createElement('canvas'); cv.width = Math.round(cut.W * scale); cv.height = Math.round(cut.H * scale);
   const ctx = cv.getContext('2d'); ctx.scale(scale, scale);
   drawBase(ctx, p, imgs);
@@ -157,7 +164,7 @@ export async function renderStrip(p, scale = 1) {
 
 // one photo in its frame, used for GIF frames
 export async function renderCard(p, i, W = 540) {
-  await fontsReady();
+  await fontsReady(); await readyAllStickers();
   const cut = cutById(p.cut), fr = frameById(p.frame);
   const pad = W * 0.06, cw = W - pad * 2, ch = cw / cut.aspect, foot = W * 0.17, H = Math.round(pad + ch + foot);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const ctx = cv.getContext('2d');

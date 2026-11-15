@@ -1,10 +1,10 @@
 // Lingcam: the photo booth app
 import { C, CUTS, cutById, FRAMES, frameById, FRAME_CATS, SWATCHES, FILTERS, filterById, STICKER_CATS, STICKERS, FONTS, fontById, INKS } from './data.js';
-import { loadImg, stickerImg, readyStickers, fontsReady, filtered, drawBase, drawInk, drawItem, itemBox, renderStrip, renderPost, renderPrint, makeGif, toBlob, dateText } from './render.js';
-import { Strips, Settings } from './store.js';
+import { loadImg, stickerImg, readyStickers, readyPics, fontsReady, filtered, drawBase, drawInk, drawItem, itemBox, renderStrip, renderPost, renderPrint, makeGif, toBlob, dateText } from './render.js';
+import { Strips, Settings, MyStickers } from './store.js';
 import * as N from './native.js';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,6 +19,7 @@ const P = {
   frame: '<rect x="4" y="4" width="16" height="16" rx="1.5"/><rect x="8" y="8" width="8" height="8"/>', download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>', share: '<path d="M12 15V4M8 8l4-4 4 4M5 13v7h14v-7"/>',
   redo: '<path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v5h5"/>', gif: '<rect x="3.5" y="6" width="17" height="12" rx="2"/><path d="M8 10h-1.5v4H8v-1.5M11 10v4M14 14v-4h2.5M14 12h2"/>',
   grid: '<rect x="4" y="4" width="7" height="7"/><rect x="13" y="4" width="7" height="7"/><rect x="4" y="13" width="7" height="7"/><rect x="13" y="13" width="7" height="7"/>',
+  hand: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11m0-6.5a1.5 1.5 0 0 1 3 0V11m0-5a1.5 1.5 0 0 1 3 0v5m0-3a1.5 1.5 0 0 1 3 0v6c0 4-3 7-7 7h-1c-2.5 0-4-1-5.5-3L3.6 14a1.6 1.6 0 0 1 2.4-2.1L8 14"/>', minus: '<path d="M5 12h14"/>', home: '<path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/><path d="M10 20v-5h4v5"/>',
   undo: '<path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12"/>', redoA: '<path d="M15 7l5 5-5 5"/><path d="M20 12H10a6 6 0 0 0 0 12"/>',
   image: '<rect x="4" y="5" width="16" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20 16l-5-5-8 8"/>', story: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M10 7h4"/>',
   print: '<path d="M7 9V4h10v5M7 17H5v-6h14v6h-2"/><rect x="7" y="14" width="10" height="6"/>', link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
@@ -100,6 +101,24 @@ function show(name) {
   N.setBars(name === 'camera');
   const b = $('[data-back]', main); if (b) b.onclick = back;
   $$('[data-go]', main).forEach((el) => (el.onclick = () => go(el.dataset.go)));
+  $$('[data-home]', main).forEach((el) => (el.onclick = goHome));
+}
+function goHome() { S.p = newProject(); S.mode = 'camera'; S.retake = null; E.reset(); go('home', { reset: true }); }
+function confetti() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cv = document.createElement('canvas'); cv.className = 'confetti'; cv.width = innerWidth * devicePixelRatio; cv.height = innerHeight * devicePixelRatio; document.body.appendChild(cv);
+  const x = cv.getContext('2d'); x.scale(devicePixelRatio, devicePixelRatio);
+  const cols = ['#ff7a9a', '#ffd23f', '#ffbfd3', '#fff3c4', '#c93a6e', '#7fa8e8', '#c9b6f2'];
+  const P = Array.from({ length: 140 }, () => ({ x: innerWidth / 2 + (Math.random() - 0.5) * 80, y: innerHeight * 0.35, vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 15 - 5, r: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, c: cols[Math.floor(Math.random() * cols.length)], s: 5 + Math.random() * 6, h: Math.random() < 0.25 }));
+  const t0 = performance.now();
+  const step = (t) => {
+    x.clearRect(0, 0, innerWidth, innerHeight);
+    P.forEach((p) => { p.vy += 0.42; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr; x.save(); x.translate(p.x, p.y); x.rotate(p.r); x.fillStyle = p.c;
+      if (p.h) { x.beginPath(); x.moveTo(0, p.s * 0.5); x.bezierCurveTo(-p.s, -p.s * 0.2, -p.s * 0.5, -p.s, 0, -p.s * 0.4); x.bezierCurveTo(p.s * 0.5, -p.s, p.s, -p.s * 0.2, 0, p.s * 0.5); x.fill(); } else x.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+      x.restore(); });
+    if (t - t0 < 3200 && document.body.contains(cv)) requestAnimationFrame(step); else cv.remove();
+  };
+  requestAnimationFrame(step);
 }
 function back() {
   if (S.sheet) { closeSheet(); return true; }
@@ -149,7 +168,7 @@ SCREENS.home = () => {
 // ---------------- 1 Cut ----------------
 SCREENS.cut = () => {
   const p = S.p;
-  main.innerHTML = `<section class="scr">${top('Choose your cut', 1)}<div class="scroll"><div class="grid2" role="group" aria-label="Cuts">${CUTS.map((c) => `<button class="card" data-cut="${c.id}" aria-pressed="${p.cut === c.id}"><div class="pv"></div><b>${esc(c.name)}</b><small>${esc(c.sub)}</small></button>`).join('')}</div></div>
+  main.innerHTML = `<section class="scr">${top('Choose your cut', 1)}<div class="scroll"><div class="grid2" role="group" aria-label="Cuts">${CUTS.map((c, i) => `<button class="card" style="--d:${i * 40}ms" data-cut="${c.id}" aria-pressed="${p.cut === c.id}"><div class="pv"></div><b>${esc(c.name)}</b><small>${esc(c.sub)}</small></button>`).join('')}</div></div>
   <div class="foot col"><button class="btn" id="next">Next: pick a frame</button></div></section>`;
   $$('[data-cut]').forEach((b) => {
     b.querySelector('.pv').appendChild(thumb({ ...p, cut: b.dataset.cut, frame: 'paper', photos: [] }, 112, 112));
@@ -168,7 +187,7 @@ SCREENS.frame = () => {
   const draw = () => {
     const fg = $('#fg'); fg.innerHTML = '';
     FRAMES.filter((f) => cat === 'All' || f.cat === cat).forEach((f) => {
-      const b = document.createElement('button'); b.className = 'card fcard'; b.setAttribute('aria-pressed', String(p.frame === f.id && !p.frameColor));
+      const b = document.createElement('button'); b.className = 'card fcard'; b.style.setProperty('--d', Math.min(fg.children.length, 18) * 25 + 'ms'); b.setAttribute('aria-pressed', String(p.frame === f.id && !p.frameColor));
       b.innerHTML = `<div class="pv"></div><b style="font-size:12px">${esc(f.name)}</b>`;
       b.querySelector('.pv').appendChild(thumb({ ...p, frame: f.id, frameColor: null, photos: [] }, 104, 140));
       b.onclick = () => { p.frame = f.id; p.frameColor = null; if (f.filter && p.filter === 'none') p.filter = f.filter; $$('#fg .card').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); };
@@ -177,7 +196,7 @@ SCREENS.frame = () => {
     });
   };
   $$('[data-cat]').forEach((b) => (b.onclick = () => { cat = b.dataset.cat; $$('[data-cat]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); draw(); }));
-  draw();
+  draw(); readyStickers().then(() => { if ($('#fg')) draw(); });
   $('#next').onclick = async () => {
     if (S.mode === 'upload') { if (await uploadInto(null)) go('review'); }
     else go('camera');
@@ -333,7 +352,8 @@ function rebind() { const b = $('[data-back]', main); if (b) b.onclick = back; }
 // ---------------- 4 Decorate (editor) ----------------
 const E = {
   tab: 'stickers', sel: -1, cat: 'cute', pen: { c: C.hot, w: 2, erase: false }, undo: [], redo: [], base: null, ink: document.createElement('canvas'), imgs: [], ptrs: new Map(), g: null, cleanup: null,
-  reset() { this.tab = 'stickers'; this.sel = -1; this.undo = []; this.redo = []; },
+  view: { z: 1, tx: 0, ty: 0 }, hand: false, pops: [], mineEdit: false,
+  reset() { this.tab = 'stickers'; this.sel = -1; this.undo = []; this.redo = []; this.view = { z: 1, tx: 0, ty: 0 }; this.hand = false; },
 };
 const SNAP_KEYS = ['items', 'strokes', 'frame', 'frameColor', 'filter', 'showName', 'showDate', 'rounded', 'caption'];
 function snap() { const p = S.p; E.undo.push(JSON.stringify(SNAP_KEYS.map((k) => p[k]))); if (E.undo.length > 60) E.undo.shift(); E.redo = []; undoBtns(); }
@@ -341,51 +361,86 @@ function restore(json) { const v = JSON.parse(json); SNAP_KEYS.forEach((k, i) =>
 function doUndo() { if (!E.undo.length) return; E.redo.push(JSON.stringify(SNAP_KEYS.map((k) => S.p[k]))); restore(E.undo.pop()); undoBtns(); }
 function doRedo() { if (!E.redo.length) return; E.undo.push(JSON.stringify(SNAP_KEYS.map((k) => S.p[k]))); restore(E.redo.pop()); undoBtns(); }
 function undoBtns() { const u = $('#undo'), r = $('#redoB'); if (u) u.disabled = !E.undo.length; if (r) r.disabled = !E.redo.length; }
+const zs = () => (E.css || 0.5) * E.view.z; // screen pixels per strip pixel
 
 SCREENS.decorate = () => {
   const p = S.p;
   main.innerHTML = `<section class="scr">${top('Decorate', 4, `<button class="ibtn" id="undo" aria-label="Undo">${ic('undo')}</button><button class="ibtn" id="redoB" aria-label="Redo">${ic('redoA')}</button>`)}
-  <div class="deco-body"><div class="stage-wrap" id="sw"><canvas class="stage" id="stage" aria-label="Your strip. Drag stickers and words to move them."></canvas></div>
+  <div class="deco-body"><div class="stage-wrap" id="sw"><canvas class="stage" id="stage" aria-label="Your strip. Drag stickers and words to move them."></canvas>
+  <div class="zoombar" role="group" aria-label="Zoom"><button id="hand" class="zb" aria-pressed="false" aria-label="Move the picture" title="Move the picture">${ic('hand')}</button><button id="zout" class="zb" aria-label="Zoom out">${ic('minus')}</button><button id="zfit" class="zb zt" aria-label="Fit to screen">100%</button><button id="zin" class="zb" aria-label="Zoom in">${ic('plus')}</button></div></div>
   <div class="panel"><div class="pane" id="pane"></div>
   <div class="tools" role="tablist">${[['stickers', 'sticker', 'Stickers'], ['text', 'text', 'Text'], ['draw', 'pen', 'Draw'], ['frame', 'frame', 'Frame'], ['filter', 'filter', 'Filter']].map(([t, i, l]) => `<button role="tab" data-tab="${t}" aria-pressed="${E.tab === t}" aria-selected="${E.tab === t}">${ic(i)}<span>${l}</span></button>`).join('')}</div>
   <button class="btn block" id="fin">Done</button></div></div></section>`;
   const cut = cutById(p.cut); const cv = $('#stage'); cv.width = cut.W; cv.height = cut.H; E.cv = cv; E.ctx = cv.getContext('2d');
-  const fit = () => { const w = $('#sw'); if (!w) return; const W = w.clientWidth - 36, H = w.clientHeight - 20; const s = Math.min(W / cut.W, H / cut.H); cv.style.width = Math.floor(cut.W * s) + 'px'; cv.style.height = Math.floor(cut.H * s) + 'px'; E.css = s; draw(); };
+  const fit = () => { const w = $('#sw'); if (!w) return; const W = w.clientWidth - 36, H = w.clientHeight - 20; const s = Math.min(W / cut.W, H / cut.H); cv.style.width = Math.floor(cut.W * s) + 'px'; cv.style.height = Math.floor(cut.H * s) + 'px'; E.css = s; applyView(); draw(); };
   window.addEventListener('resize', fit);
   const key = (e) => {
     if (e.target.matches('input, textarea')) return;
     if ((e.key === 'Delete' || e.key === 'Backspace') && E.sel >= 0) { e.preventDefault(); delSel(); }
     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); }
     else if (e.key === 'Escape' && E.sel >= 0) { E.sel = -1; draw(); renderPane(); }
+    else if (e.key === '+' || e.key === '=') zoomBy(1.25); else if (e.key === '-') zoomBy(0.8); else if (e.key === '0') setView(1, 0, 0);
   };
   document.addEventListener('keydown', key);
   E.cleanup = () => { window.removeEventListener('resize', fit); document.removeEventListener('keydown', key); E.cleanup = null; };
   $('#undo').onclick = doUndo; $('#redoB').onclick = doRedo; undoBtns();
-  $$('[data-tab]').forEach((b) => (b.onclick = () => { E.tab = b.dataset.tab; $$('[data-tab]').forEach((x) => { x.setAttribute('aria-pressed', String(x === b)); x.setAttribute('aria-selected', String(x === b)); }); if (E.tab === 'draw') E.sel = -1; draw(); renderPane(); }));
+  $('#zin').onclick = () => zoomBy(1.4); $('#zout').onclick = () => zoomBy(1 / 1.4); $('#zfit').onclick = () => setView(1, 0, 0);
+  $('#hand').onclick = () => { E.hand = !E.hand; $('#hand').setAttribute('aria-pressed', String(E.hand)); toast(E.hand ? 'Drag to move the picture. Tap the hand again to draw.' : 'Hand off', 1800); };
+  $('#sw').addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12, e.clientX, e.clientY); }, { passive: false });
+  $$('[data-tab]').forEach((b) => (b.onclick = () => { E.tab = b.dataset.tab; $$('[data-tab]').forEach((x) => { x.setAttribute('aria-pressed', String(x === b)); x.setAttribute('aria-selected', String(x === b)); }); if (E.tab === 'draw') { E.sel = -1; if (E.view.z === 1) toast('Tip: pinch or tap + to zoom in for small details', 2400); } draw(); renderPane(); }));
   $('#fin').onclick = finish;
   bindStage(cv);
   (async () => {
     await fontsReady();
     E.imgs = await Promise.all(cut.cells.map((_, i) => (p.photos[i] ? loadImg(p.photos[i]) : null)));
-    await readyStickers(Object.keys(STICKERS));
+    await readyStickers(); await readyPics(p.items);
     rebuildBase(); fit(); renderPane();
   })();
   renderPane();
   requestAnimationFrame(fit);
 };
+
+// ---- zoom and move the picture ----
+function canvasOrigin() { const w = $('#sw').getBoundingClientRect(); return [w.left + E.cv.offsetLeft, w.top + E.cv.offsetTop]; }
+function clampView(v) {
+  if (v.z <= 1.001) return { z: 1, tx: 0, ty: 0 };
+  const w = E.cv.offsetWidth, h = E.cv.offsetHeight, m = 60;
+  v.tx = Math.min(w - m, Math.max(-w * v.z + m, v.tx)); v.ty = Math.min(h - m, Math.max(-h * v.z + m, v.ty));
+  return v;
+}
+function applyView() { const v = E.view; if (!E.cv) return; E.cv.style.transform = v.z === 1 ? '' : `translate(${v.tx}px, ${v.ty}px) scale(${v.z})`; const t = $('#zfit'); if (t) t.textContent = Math.round(v.z * 100) + '%'; }
+function setView(z, tx, ty) { E.view = clampView({ z, tx, ty }); applyView(); draw(); }
+function zoomAround(z0, tx0, ty0, cx, cy, z, mx = cx, my = cy) {
+  const [Lx, Ly] = canvasOrigin(); const px = (cx - Lx - tx0) / z0, py = (cy - Ly - ty0) / z0;
+  z = Math.min(8, Math.max(1, z)); setView(z, mx - Lx - px * z, my - Ly - py * z);
+}
+function zoomBy(f, cx, cy) {
+  const w = $('#sw').getBoundingClientRect(); if (cx == null) { cx = w.left + w.width / 2; cy = w.top + w.height / 2; }
+  const v = E.view; zoomAround(v.z, v.tx, v.ty, cx, cy, v.z * f);
+}
+
 function rebuildBase() {
   const p = S.p, cut = cutById(p.cut);
   const b = E.base || document.createElement('canvas'); b.width = cut.W; b.height = cut.H;
   drawBase(b.getContext('2d'), p, E.imgs); E.base = b; draw();
 }
+const easeBack = (t) => { const c = 1.9; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+let popRaf = 0;
 function draw() {
   const p = S.p, x = E.ctx; if (!x || !E.base) return;
   const cut = cutById(p.cut); x.clearRect(0, 0, cut.W, cut.H); x.drawImage(E.base, 0, 0);
   drawInk(x, p, cut.W, cut.H, E.ink);
-  p.items.forEach((it) => drawItem(x, it));
+  const now = performance.now(); let anim = false;
+  p.items.forEach((it) => {
+    const pop = E.pops.find((q) => q.it === it);
+    if (pop) { const t = Math.min(1, (now - pop.t0) / 320); if (t < 1) { anim = true; drawItem(x, { ...it, size: it.size * Math.max(0.05, easeBack(t)) }); return; } }
+    drawItem(x, it);
+  });
+  E.pops = E.pops.filter((q) => now - q.t0 < 320);
+  if (anim && !popRaf) popRaf = requestAnimationFrame(() => { popRaf = 0; draw(); });
   const it = p.items[E.sel];
   if (it && E.tab !== 'draw') {
-    const b = itemBox(x, it), u = 1 / (E.css || 0.5), m = 6 * u;
+    const b = itemBox(x, it), u = 1 / zs(), m = 6 * u;
     x.save(); x.translate(it.x, it.y); x.rotate(it.r || 0);
     x.setLineDash([8 * u, 6 * u]); x.lineWidth = 2.5 * u; x.strokeStyle = C.hot; x.strokeRect(-b.w / 2 - m, -b.h / 2 - m, b.w + m * 2, b.h + m * 2); x.setLineDash([]);
     const hr = 13 * u;
@@ -399,110 +454,166 @@ function draw() {
 function toLocal(it, px, py) { const dx = px - it.x, dy = py - it.y, c = Math.cos(-(it.r || 0)), s = Math.sin(-(it.r || 0)); return [dx * c - dy * s, dx * s + dy * c]; }
 function hitHandle(px, py) {
   const it = S.p.items[E.sel]; if (!it) return null;
-  const b = itemBox(E.ctx, it), u = 1 / (E.css || 0.5), m = 6 * u, R = 22 * u;
+  const b = itemBox(E.ctx, it), u = 1 / zs(), m = 6 * u, R = 22 * u;
   const [lx, ly] = toLocal(it, px, py);
   if (Math.hypot(lx - (b.w / 2 + m), ly - (-b.h / 2 - m)) < R) return 'del';
   if (Math.hypot(lx - (b.w / 2 + m), ly - (b.h / 2 + m)) < R) return 'size';
   return null;
 }
 function hitItem(px, py) {
-  const items = S.p.items, u = 1 / (E.css || 0.5);
+  const items = S.p.items, u = 1 / zs();
   for (let i = items.length - 1; i >= 0; i--) { const b = itemBox(E.ctx, items[i]); const [lx, ly] = toLocal(items[i], px, py); const pad = 8 * u; if (Math.abs(lx) <= b.w / 2 + pad && Math.abs(ly) <= b.h / 2 + pad) return i; }
   return -1;
 }
 function bindStage(cv) {
   const pt = (e) => { const r = cv.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * cv.width, ((e.clientY - r.top) / r.height) * cv.height]; };
+  const cl = new Map(); // screen positions of each finger
+  const startViewPinch = () => { const [a, b] = [...cl.values()]; const v = E.view; E.g = { mode: 'view', z0: v.z, tx0: v.tx, ty0: v.ty, d0: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, mx0: (a[0] + b[0]) / 2, my0: (a[1] + b[1]) / 2 }; };
+  const startPan = (e) => { const v = E.view; E.g = { mode: 'pan', x0: e.clientX, y0: e.clientY, tx0: v.tx, ty0: v.ty }; };
   cv.addEventListener('pointerdown', (e) => {
-    cv.setPointerCapture(e.pointerId); const [x, y] = pt(e); E.ptrs.set(e.pointerId, [x, y]);
+    cv.setPointerCapture(e.pointerId); const [x, y] = pt(e); E.ptrs.set(e.pointerId, [x, y]); cl.set(e.pointerId, [e.clientX, e.clientY]);
     const p = S.p;
+    if (e.button === 1 || E.hand) { if (cl.size === 2) startViewPinch(); else startPan(e); return; }
     if (E.tab === 'draw') {
-      if (E.ptrs.size > 1) return;
+      if (cl.size === 2) { // second finger: zoom instead of drawing
+        if (E.g && E.g.mode === 'draw') { p.strokes.pop(); E.undo.pop(); undoBtns(); }
+        startViewPinch(); draw(); return;
+      }
+      if (cl.size > 2) return;
       snap(); const s = cutById(p.cut).W / 600;
-      p.strokes.push({ c: E.pen.c, w: [6, 12, 24][E.pen.w - 1] * s, erase: E.pen.erase, pts: [[x, y]] }); E.g = { mode: 'draw' }; draw(); return;
+      p.strokes.push({ c: E.pen.c, w: ([6, 12, 24][E.pen.w - 1] * s) / Math.pow(E.view.z, 0.8), erase: E.pen.erase, pts: [[Math.round(x), Math.round(y)]] }); E.g = { mode: 'draw' }; draw(); return;
     }
-    if (E.ptrs.size === 2 && E.sel >= 0) { const it = p.items[E.sel]; const [a, b] = [...E.ptrs.values()]; E.g = { mode: 'pinch', d0: Math.hypot(a[0] - b[0], a[1] - b[1]), a0: Math.atan2(b[1] - a[1], b[0] - a[0]), s0: it.size, r0: it.r || 0 }; return; }
+    if (cl.size === 2) {
+      if (E.sel >= 0) { const it = p.items[E.sel]; const [a, b] = [...E.ptrs.values()]; if (E.g && E.g.mode === 'move' && !E.g.moved) { E.undo.pop(); } snap(); E.g = { mode: 'pinch', d0: Math.hypot(a[0] - b[0], a[1] - b[1]), a0: Math.atan2(b[1] - a[1], b[0] - a[0]), s0: it.size, r0: it.r || 0 }; }
+      else startViewPinch();
+      return;
+    }
     const h = hitHandle(x, y);
     if (h === 'del') { delSel(); E.g = null; return; }
     if (h === 'size') { const it = p.items[E.sel]; snap(); E.g = { mode: 'size', d0: Math.hypot(x - it.x, y - it.y), a0: Math.atan2(y - it.y, x - it.x), s0: it.size, r0: it.r || 0 }; return; }
     const i = hitItem(x, y);
     if (i >= 0) {
-      const changed = E.sel !== i; E.sel = i; const it = p.items[i];
+      const changed = E.sel !== i; const it = p.items[i];
       p.items.push(p.items.splice(i, 1)[0]); E.sel = p.items.length - 1; // bring to front
       snap(); E.g = { mode: 'move', dx: x - it.x, dy: y - it.y, moved: false };
       draw(); if (changed || E.tab === 'text') { if (it.t === 'text' && E.tab !== 'text') { E.tab = 'text'; $$('[data-tab]').forEach((b) => { b.setAttribute('aria-pressed', String(b.dataset.tab === 'text')); b.setAttribute('aria-selected', String(b.dataset.tab === 'text')); }); } renderPane(); }
-    } else { const had = E.sel >= 0; E.sel = -1; E.g = null; draw(); if (had) renderPane(); }
+    } else {
+      const had = E.sel >= 0; E.sel = -1; draw(); if (had) renderPane();
+      if (E.view.z > 1) startPan(e); else E.g = null;
+    }
   });
   cv.addEventListener('pointermove', (e) => {
-    if (!E.ptrs.has(e.pointerId)) return; const [x, y] = pt(e); E.ptrs.set(e.pointerId, [x, y]);
+    if (!E.ptrs.has(e.pointerId)) return; const [x, y] = pt(e); E.ptrs.set(e.pointerId, [x, y]); cl.set(e.pointerId, [e.clientX, e.clientY]);
     const g = E.g, p = S.p; if (!g) return;
-    if (g.mode === 'draw') { const st = p.strokes[p.strokes.length - 1]; const L = st.pts[st.pts.length - 1]; if (Math.hypot(L[0] - x, L[1] - y) > 2) { st.pts.push([Math.round(x), Math.round(y)]); draw(); } return; }
+    if (g.mode === 'view' && cl.size >= 2) { const [a, b] = [...cl.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); zoomAround(g.z0, g.tx0, g.ty0, g.mx0, g.my0, g.z0 * d / g.d0, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); return; }
+    if (g.mode === 'pan') { setView(E.view.z, g.tx0 + e.clientX - g.x0, g.ty0 + e.clientY - g.y0); return; }
+    if (g.mode === 'draw') { const st = p.strokes[p.strokes.length - 1]; const L = st.pts[st.pts.length - 1]; if (Math.hypot(L[0] - x, L[1] - y) > 1.5 / E.view.z) { st.pts.push([Math.round(x * 2) / 2, Math.round(y * 2) / 2]); draw(); } return; }
     const it = p.items[E.sel]; if (!it) return;
-    const minS = it.t === 'text' ? 14 : 30, maxS = cutById(p.cut).W * 1.4;
+    const minS = it.t === 'text' ? 12 : 24, maxS = cutById(p.cut).W * 1.6;
     if (g.mode === 'move') { it.x = x - g.dx; it.y = y - g.dy; g.moved = true; }
     else if (g.mode === 'size') { const d = Math.hypot(x - it.x, y - it.y); it.size = Math.max(minS, Math.min(maxS, g.s0 * d / Math.max(1, g.d0))); it.r = g.r0 + Math.atan2(y - it.y, x - it.x) - g.a0; }
     else if (g.mode === 'pinch' && E.ptrs.size >= 2) { const [a, b] = [...E.ptrs.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); it.size = Math.max(minS, Math.min(maxS, g.s0 * d / Math.max(1, g.d0))); it.r = g.r0 + Math.atan2(b[1] - a[1], b[0] - a[0]) - g.a0; }
     draw();
   });
-  const up = (e) => { E.ptrs.delete(e.pointerId); if (E.ptrs.size === 0) { if (E.g && E.g.mode === 'move' && !E.g.moved) E.undo.pop(), undoBtns(); E.g = null; } else if (E.g && E.g.mode === 'pinch') E.g = null; };
+  const up = (e) => {
+    E.ptrs.delete(e.pointerId); cl.delete(e.pointerId);
+    if (cl.size === 0) { if (E.g && E.g.mode === 'move' && !E.g.moved) E.undo.pop(), undoBtns(); E.g = null; }
+    else if (E.g && (E.g.mode === 'pinch' || E.g.mode === 'view')) E.g = null;
+  };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 }
 function delSel() { if (E.sel < 0) return; snap(); S.p.items.splice(E.sel, 1); E.sel = -1; draw(); renderPane(); }
 function addItem(it) {
   const p = S.p, cut = cutById(p.cut); snap();
-  const n = p.items.length; it.x = it.x ?? cut.W / 2 + ((n % 3) - 1) * cut.W * 0.12; it.y = it.y ?? cut.H * (0.3 + (n % 4) * 0.12); it.r = it.r ?? (Math.random() - 0.5) * 0.4;
-  p.items.push(it); E.sel = p.items.length - 1; draw();
+  const n = p.items.length;
+  if (it.x == null) { // place it where the person is looking when zoomed in
+    const w = $('#sw').getBoundingClientRect(), r = E.cv.getBoundingClientRect();
+    const cx = ((w.left + w.width / 2 - r.left) / r.width) * cut.W, cy = ((w.top + w.height / 2 - r.top) / r.height) * cut.H;
+    const jitter = ((n % 3) - 1) * cut.W * 0.1 / E.view.z;
+    it.x = Math.min(cut.W, Math.max(0, (E.view.z > 1 ? cx : cut.W / 2) + jitter)); it.y = Math.min(cut.H, Math.max(0, E.view.z > 1 ? cy : cut.H * (0.3 + (n % 4) * 0.12)));
+    it.size = it.size / Math.sqrt(E.view.z);
+  }
+  it.r = it.r ?? (Math.random() - 0.5) * 0.4;
+  p.items.push(it); E.sel = p.items.length - 1; E.pops.push({ it, t0: performance.now() }); draw();
+}
+const colorDots = (attr, list, cur, label, custom = true) => `<div class="dots" role="group" aria-label="${label}">${list.map((c) => `<button class="dot" data-${attr}="${c}" aria-label="${label} ${c}" aria-pressed="${cur === c}" style="background:${c}"></button>`).join('')}${custom ? `<label class="dot pick" aria-pressed="${!!cur && !list.includes(cur)}" title="Any colour" style="${cur && !list.includes(cur) ? `background:${cur}` : ''}"><input type="color" data-${attr}-pick value="${/^#[0-9a-f]{6}$/i.test(cur || '') ? cur : '#c93a6e'}" aria-label="Pick any ${label.toLowerCase()}"></label>` : ''}</div>`;
+async function renderMine(pane, base) {
+  let list = []; try { list = await MyStickers.list(); } catch (e) {}
+  const g = $('#mine', pane); if (!g) return;
+  g.innerHTML = `<button class="stk add" id="addMine" aria-label="Add your own sticker">${ic('plus')}<small>Add</small></button>` + list.map((st) => `<button class="stk mine" data-mid="${st.id}" aria-label="Your sticker"><img alt="" src="${st.src}">${E.mineEdit ? `<span class="x" aria-hidden="true">×</span>` : ''}</button>`).join('');
+  $('#addMine', pane).onclick = importSticker;
+  $$('[data-mid]', pane).forEach((b) => (b.onclick = async () => {
+    const st = list.find((q) => q.id === b.dataset.mid); if (!st) return;
+    if (E.mineEdit) { if (await confirmBox('Delete this sticker?', 'It will be removed from your stickers. Strips that already use it keep it.')) { await MyStickers.del(st.id); renderMine(pane, base); } return; }
+    await readyPics([{ t: 'image', src: st.src }]);
+    addItem({ t: 'image', src: st.src, ar: st.ar || 1, size: base * 1.2 });
+  }));
+  const ed = $('#mineEdit', pane); if (ed) { ed.style.display = list.length ? '' : 'none'; ed.textContent = E.mineEdit ? 'Done' : 'Edit'; ed.onclick = () => { E.mineEdit = !E.mineEdit; renderMine(pane, base); }; }
 }
 function renderPane() {
   const pane = $('#pane'); if (!pane) return; const p = S.p, cut = cutById(p.cut), s = cut.W / 600;
   const base = Math.min(cut.W, cut.H) * 0.24;
   if (E.tab === 'stickers') {
-    const cat = STICKER_CATS.find((c) => c.id === E.cat) || STICKER_CATS[0];
+    const cat = STICKER_CATS.find((c) => c.id === E.cat) || STICKER_CATS[1];
     pane.innerHTML = `<div class="chips" role="group" aria-label="Sticker packs">${STICKER_CATS.map((c) => `<button class="chip" data-sc="${c.id}" aria-pressed="${c.id === cat.id}">${c.name}</button>`).join('')}</div>
-    ${cat.words ? `<div class="words">${cat.words.map((w, i) => `<button class="word" data-w="${i}">${esc(w)}</button>`).join('')}</div>`
-      : `<div class="stk-grid">${(cat.items || cat.emoji).map((k, i) => `<button class="stk" data-k="${i}" aria-label="Add sticker">${cat.emoji ? k : `<img alt="" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(STICKERS[k])}">`}</button>`).join('')}</div>`}
+    ${cat.mine ? `<div class="row" style="justify-content:space-between"><span class="hint" style="text-align:left">Turn your own pictures into stickers.</span><button class="chip" id="mineEdit">Edit</button></div><div class="stk-grid" id="mine"></div>`
+      : cat.words ? `<div class="words">${cat.words.map((w, i) => `<button class="word" data-w="${i}">${esc(w)}</button>`).join('')}</div>`
+      : `<div class="stk-grid">${(cat.items || cat.emoji).map((k, i) => `<button class="stk" data-k="${i}" aria-label="Add sticker" style="--d:${i * 18}ms">${cat.emoji ? k : `<img alt="" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(STICKERS[k])}">`}</button>`).join('')}</div>`}
     <div class="hint">Drag to move. Drag the round handle to resize and turn. Pinch works too.</div>`;
-    $$('[data-sc]', pane).forEach((b) => (b.onclick = () => { E.cat = b.dataset.sc; renderPane(); }));
-    $$('[data-k]', pane).forEach((b) => (b.onclick = () => { const k = (cat.items || cat.emoji)[+b.dataset.k]; addItem(cat.emoji ? { t: 'emoji', ch: k, size: base } : { t: 'sticker', k, size: base }); }));
-    $$('[data-w]', pane).forEach((b) => (b.onclick = () => { const i = +b.dataset.w; const st = [[C.hot, C.yel2], [C.ink, C.pink2], [C.yel2, C.ink]][i % 3]; addItem({ t: 'text', text: cat.words[i], font: 'script', color: st[0], bg: st[1], size: 46 * s + 10 }); }));
+    $$('[data-sc]', pane).forEach((b) => (b.onclick = () => { E.cat = b.dataset.sc; E.mineEdit = false; renderPane(); }));
+    $$('[data-k]', pane).forEach((b) => (b.onclick = () => { const k = (cat.items || cat.emoji)[+b.dataset.k]; addItem(cat.emoji ? { t: 'emoji', ch: k, size: base } : { t: 'sticker', k, size: k.startsWith('tape') ? base * 1.5 : base }); }));
+    $$('[data-w]', pane).forEach((b) => (b.onclick = () => { const i = +b.dataset.w; const st = [[C.hot, C.yel2], [C.ink, C.pink2], [C.yel2, C.ink], ['#fff', '#7fa8e8'], ['#5b3f8f', '#e6dcff']][i % 5]; addItem({ t: 'text', text: cat.words[i], font: ['script', 'pacifico', 'round', 'marker', 'chewy'][i % 5], color: st[0], bg: st[1], size: 42 * s + 10 }); }));
+    if (cat.mine) renderMine(pane, base);
   } else if (E.tab === 'text') {
     const it = p.items[E.sel] && p.items[E.sel].t === 'text' ? p.items[E.sel] : null;
-    const cur = it || E.tdraft || (E.tdraft = { font: 'script', color: C.hot, bg: null });
+    const cur = it || E.tdraft || (E.tdraft = { font: 'script', color: C.hot, bg: null, outline: null, shadow: null });
+    const style = cur.outline ? 'outline' : cur.shadow ? 'shadow' : 'plain';
     pane.innerHTML = `<label class="lbl" for="tin">${it ? 'Edit your words' : 'Your words'}</label><textarea id="tin" class="tin" rows="2" maxlength="80" placeholder="best day ever">${esc(it ? it.text : '')}</textarea>
     <button class="btn sm" id="addt">${ic('plus')}<span>${it ? 'Add more words' : 'Add to strip'}</span></button>
-    <div class="fonts" role="group" aria-label="Font">${FONTS.map((f) => `<button data-font="${f.id}" aria-pressed="${cur.font === f.id}" style="font-family:'${f.css}';font-weight:${f.weight};font-style:${f.style || 'normal'}">Aa<small>${f.name}</small></button>`).join('')}</div>
-    <div class="lbl">Colour</div><div class="dots" role="group" aria-label="Text colour">${INKS.map((c) => `<button class="dot" data-col="${c}" aria-label="Colour ${c}" aria-pressed="${cur.color === c}" style="background:${c}"></button>`).join('')}</div>
-    <div class="lbl">Background</div><div class="dots" role="group" aria-label="Text background"><button class="dot" data-bg="" aria-label="No background" aria-pressed="${!cur.bg}" style="background:linear-gradient(135deg,#fff 45%,${C.hot} 47%,${C.hot} 53%,#fff 55%)"></button>${[C.yel2, C.pink2, '#ffffff', C.ink, C.hot].map((c) => `<button class="dot sq" data-bg="${c}" aria-label="Background ${c}" aria-pressed="${cur.bg === c}" style="background:${c}"></button>`).join('')}</div>`;
+    <div class="lbl">Font</div><div class="fonts" role="group" aria-label="Font">${FONTS.map((f) => `<button data-font="${f.id}" aria-pressed="${cur.font === f.id}" style="font-family:'${f.css}';font-weight:${f.weight};font-style:${f.style || 'normal'}">Aa<small>${f.name}</small></button>`).join('')}</div>
+    <div class="lbl">Colour</div>${colorDots('col', INKS, cur.color, 'Text colour')}
+    <div class="lbl">Style</div>${seg('tstyle', [['plain', 'Plain'], ['outline', 'Outline'], ['shadow', 'Shadow']], style)}
+    <div class="lbl">Background</div><div class="dots" role="group" aria-label="Text background"><button class="dot" data-bg="" aria-label="No background" aria-pressed="${!cur.bg}" style="background:linear-gradient(135deg,#fff 45%,${C.hot} 47%,${C.hot} 53%,#fff 55%)"></button>${[C.yel2, C.pink2, '#ffffff', C.ink, C.hot, '#e6dcff', '#cdeedd', '#cfe8ff', '#000000'].map((c) => `<button class="dot sq" data-bg="${c}" aria-label="Background ${c}" aria-pressed="${cur.bg === c}" style="background:${c}"></button>`).join('')}<label class="dot sq pick" title="Any colour"><input type="color" data-bg-pick value="${/^#[0-9a-f]{6}$/i.test(cur.bg || '') ? cur.bg : '#ffe589'}" aria-label="Pick any background colour"></label></div>`;
     const tin = $('#tin');
     tin.oninput = () => { const t = p.items[E.sel]; if (t && t.t === 'text') { if (!E.typing) { snap(); E.typing = true; } t.text = tin.value || ' '; draw(); } };
     tin.onblur = () => (E.typing = false);
     $('#addt').onclick = () => {
       const txt = (it ? '' : tin.value.trim()) || 'best day ever';
-      addItem({ t: 'text', text: txt, font: cur.font, color: cur.color, bg: cur.bg, size: 52 * s + 10 }); renderPane();
+      addItem({ t: 'text', text: txt, font: cur.font, color: cur.color, bg: cur.bg, outline: cur.outline, shadow: cur.shadow, size: 52 * s + 10 }); renderPane();
       setTimeout(() => { const t = $('#tin'); if (t) { t.focus(); t.select(); } }, 30);
     };
-    const setv = (k, v) => { const t = p.items[E.sel]; if (t && t.t === 'text') { snap(); t[k] = v; draw(); } else E.tdraft[k] = v; renderPane(); };
-    $$('[data-font]', pane).forEach((b) => (b.onclick = () => setv('font', b.dataset.font)));
-    $$('[data-col]', pane).forEach((b) => (b.onclick = () => setv('color', b.dataset.col)));
-    $$('[data-bg]', pane).forEach((b) => (b.onclick = () => setv('bg', b.dataset.bg || null)));
+    const setv = (patch, keep) => { const t = p.items[E.sel]; if (t && t.t === 'text') { snap(); Object.assign(t, patch); draw(); } else Object.assign(E.tdraft, patch); if (!keep) renderPane(); };
+    const dark = (c) => { const n = parseInt((c || '#000').slice(1), 16); return ((n >> 16) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114) < 150; };
+    $$('[data-font]', pane).forEach((b) => (b.onclick = () => setv({ font: b.dataset.font })));
+    $$('[data-col]', pane).forEach((b) => (b.onclick = () => setv({ color: b.dataset.col, ...(cur.outline ? { outline: dark(b.dataset.col) ? '#ffffff' : C.ink } : {}) })));
+    const cp = $('[data-col-pick]', pane); cp.oninput = () => setv({ color: cp.value }, true); cp.onchange = () => renderPane();
+    $$('[data-seg="tstyle"]', pane).forEach((b) => (b.onclick = () => { const v = b.dataset.v, c = cur.color; setv({ outline: v === 'outline' ? (dark(c) ? '#ffffff' : C.ink) : null, shadow: v === 'shadow' ? (dark(c) ? '#ffbfd3' : C.ink) : null }); }));
+    $$('[data-bg]', pane).forEach((b) => (b.onclick = () => setv({ bg: b.dataset.bg || null })));
+    const bp = $('[data-bg-pick]', pane); bp.oninput = () => setv({ bg: bp.value }, true); bp.onchange = () => renderPane();
   } else if (E.tab === 'draw') {
-    pane.innerHTML = `<div class="lbl">Pen colour</div><div class="dots" role="group" aria-label="Pen colour">${INKS.map((c) => `<button class="dot" data-pc="${c}" aria-label="Pen ${c}" aria-pressed="${!E.pen.erase && E.pen.c === c}" style="background:${c}"></button>`).join('')}</div>
+    pane.innerHTML = `<div class="lbl">Pen colour</div>${colorDots('pc', INKS, E.pen.erase ? null : E.pen.c, 'Pen colour')}
     <div class="lbl">Size</div><div class="seg" role="group">${[1, 2, 3].map((w) => `<button data-pw="${w}" aria-pressed="${E.pen.w === w}" aria-label="Pen size ${w}"><span class="pen" style="width:${[5, 9, 15][w - 1]}px;height:${[5, 9, 15][w - 1]}px"></span></button>`).join('')}<button data-er aria-pressed="${E.pen.erase}">Eraser</button></div>
     <button class="btn alt sm" id="clr" ${p.strokes.length ? '' : 'disabled'}>${ic('trash')}<span>Clear drawing</span></button>
-    <div class="hint">Draw right on your strip with your finger or mouse.</div>`;
+    <div class="hint">Pinch with two fingers (or tap +) to zoom in. Lines get finer when you zoom. Use the hand to move around.</div>`;
     $$('[data-pc]', pane).forEach((b) => (b.onclick = () => { E.pen.c = b.dataset.pc; E.pen.erase = false; renderPane(); }));
+    const pp = $('[data-pc-pick]', pane); pp.oninput = () => { E.pen.c = pp.value; E.pen.erase = false; }; pp.onchange = () => renderPane();
     $$('[data-pw]', pane).forEach((b) => (b.onclick = () => { E.pen.w = +b.dataset.pw; renderPane(); }));
     $('[data-er]', pane).onclick = () => { E.pen.erase = !E.pen.erase; renderPane(); };
     $('#clr').onclick = () => { snap(); p.strokes = []; draw(); renderPane(); };
   } else if (E.tab === 'frame') {
-    pane.innerHTML = `<div class="lbl">Frame</div><div class="frow" id="frow"></div>
-    <div class="lbl">Frame colour</div><div class="dots" role="group" aria-label="Frame colour"><button class="dot sq" data-fc="" aria-label="Frame design" aria-pressed="${!p.frameColor}" style="background:conic-gradient(${C.pink2} 0 25%,${C.yel2} 0 50%,${C.pink2} 0 75%,${C.yel2} 0)"></button>${SWATCHES.map((c) => `<button class="dot sq" data-fc="${c}" aria-label="Colour ${c}" aria-pressed="${p.frameColor === c}" style="background:${c}"></button>`).join('')}</div>
+    const fcat = E.fcat || 'All';
+    pane.innerHTML = `<div class="lbl">Frame</div><div class="chips" role="group" aria-label="Frame types">${FRAME_CATS.map((c) => `<button class="chip" data-fcat="${c}" aria-pressed="${c === fcat}">${c}</button>`).join('')}</div><div class="frow" id="frow"></div>
+    <div class="lbl">Frame colour</div><div class="dots" role="group" aria-label="Frame colour"><button class="dot sq" data-fc="" aria-label="Frame design" aria-pressed="${!p.frameColor}" style="background:conic-gradient(${C.pink2} 0 25%,${C.yel2} 0 50%,${C.pink2} 0 75%,${C.yel2} 0)"></button>${SWATCHES.map((c) => `<button class="dot sq" data-fc="${c}" aria-label="Colour ${c}" aria-pressed="${p.frameColor === c}" style="background:${c}"></button>`).join('')}<label class="dot sq pick" title="Any colour" aria-pressed="${!!p.frameColor && !SWATCHES.includes(p.frameColor)}" style="${p.frameColor && !SWATCHES.includes(p.frameColor) ? `background:${p.frameColor}` : ''}"><input type="color" data-fc-pick value="${/^#[0-9a-f]{6}$/i.test(p.frameColor || '') ? p.frameColor : '#ffbfd3'}" aria-label="Pick any frame colour"></label></div>
     ${tog('showName', 'lingcam name', 'Under your photos', p.showName !== false)}
     ${tog('showDate', 'Date', 'Or your own words below', p.showDate !== false)}
     ${tog('rounded', 'Rounded corners', 'Softer photo corners', p.rounded)}
     <label class="lbl" for="cap">Words instead of the date</label><input id="cap" class="tin" maxlength="24" placeholder="${dateText(p.created)}" value="${esc(p.caption || '')}">`;
     const fr = $('#frow');
-    FRAMES.forEach((f) => { const b = document.createElement('button'); b.setAttribute('aria-pressed', String(p.frame === f.id && !p.frameColor)); b.setAttribute('aria-label', f.name); b.title = f.name; b.appendChild(thumb({ ...p, frame: f.id, frameColor: null, photos: [] }, 54, 80, E.imgs)); b.onclick = () => { snap(); p.frame = f.id; p.frameColor = null; rebuildBase(); renderPane(); }; fr.appendChild(b); });
+    FRAMES.filter((f) => fcat === 'All' || f.cat === fcat).forEach((f) => { const b = document.createElement('button'); b.setAttribute('aria-pressed', String(p.frame === f.id && !p.frameColor)); b.setAttribute('aria-label', f.name); b.title = f.name; b.appendChild(thumb({ ...p, frame: f.id, frameColor: null, photos: [] }, 54, 80, E.imgs)); b.onclick = () => { snap(); p.frame = f.id; p.frameColor = null; rebuildBase(); renderPane(); }; fr.appendChild(b); });
+    const sel = fr.querySelector('[aria-pressed="true"]'); if (sel) sel.scrollIntoView({ inline: 'center', block: 'nearest' });
+    $$('[data-fcat]', pane).forEach((b) => (b.onclick = () => { E.fcat = b.dataset.fcat; renderPane(); }));
     $$('[data-fc]', pane).forEach((b) => (b.onclick = () => { snap(); p.frameColor = b.dataset.fc || null; rebuildBase(); renderPane(); }));
+    const fp = $('[data-fc-pick]', pane); fp.oninput = () => { if (!E.typing) { snap(); E.typing = true; } p.frameColor = fp.value; rebuildBase(); }; fp.onchange = () => { E.typing = false; renderPane(); };
     $$('[data-tog]', pane).forEach((b) => (b.onclick = () => { snap(); const k = b.dataset.tog; p[k] = !(k === 'rounded' ? p[k] : p[k] !== false); rebuildBase(); renderPane(); }));
     const cap = $('#cap'); cap.oninput = () => { if (!E.typing) { snap(); E.typing = true; } p.caption = cap.value; rebuildBase(); }; cap.onblur = () => (E.typing = false);
   } else if (E.tab === 'filter') {
@@ -516,6 +627,82 @@ function renderPane() {
       b.onclick = () => { snap(); p.filter = b.dataset.fl; rebuildBase(); $$('[data-fl]', pane).forEach((x) => x.setAttribute('aria-pressed', String(x === b))); };
     });
   }
+}
+
+// ---- your own stickers ----
+function loadImage(file) { return new Promise((ok, bad) => { const u = URL.createObjectURL(file); const i = new Image(); i.onload = () => ok(i); i.onerror = () => bad(new Error('That file is not a picture Lingcam can open')); i.src = u; }); }
+function removeBg(cv, tol = 42) {
+  const w = cv.width, h = cv.height, x = cv.getContext('2d', { willReadFrequently: true }); const d = x.getImageData(0, 0, w, h), a = d.data;
+  const seen = new Uint8Array(w * h); const st = [];
+  const seed = (i) => { if (!seen[i] && a[i * 4 + 3] > 0) { seen[i] = 1; st.push([i, a[i * 4], a[i * 4 + 1], a[i * 4 + 2]]); } };
+  for (let i = 0; i < w; i++) { seed(i); seed((h - 1) * w + i); } for (let j = 0; j < h; j++) { seed(j * w); seed(j * w + w - 1); }
+  const t2 = tol * tol;
+  while (st.length) {
+    const [i, r, g, b] = st.pop(); a[i * 4 + 3] = 0;
+    const px = i % w, py = (i / w) | 0;
+    for (const [nx, ny] of [[px + 1, py], [px - 1, py], [px, py + 1], [px, py - 1]]) {
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue; const n = ny * w + nx; if (seen[n]) continue;
+      const dr = a[n * 4] - r, dg = a[n * 4 + 1] - g, db = a[n * 4 + 2] - b;
+      if (dr * dr + dg * dg + db * db < t2 && a[n * 4 + 3] > 0) { seen[n] = 1; st.push([n, a[n * 4], a[n * 4 + 1], a[n * 4 + 2]]); }
+    }
+  }
+  // soften the cut edge
+  for (let j = 1; j < h - 1; j++) for (let i = 1; i < w - 1; i++) { const n = j * w + i; if (a[n * 4 + 3] === 255 && (a[(n - 1) * 4 + 3] === 0 || a[(n + 1) * 4 + 3] === 0 || a[(n - w) * 4 + 3] === 0 || a[(n + w) * 4 + 3] === 0)) a[n * 4 + 3] = 170; }
+  x.putImageData(d, 0, 0); return cv;
+}
+function trim(cv) {
+  const w = cv.width, h = cv.height, a = cv.getContext('2d').getImageData(0, 0, w, h).data; let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (a[(y * w + x) * 4 + 3] > 10) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  if (x1 < 0) return cv; const o = document.createElement('canvas'); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1; o.getContext('2d').drawImage(cv, -x0, -y0); return o;
+}
+function shapeClip(ctx, shape, w, h) {
+  ctx.beginPath();
+  if (shape === 'circle') { const r = Math.min(w, h) / 2; ctx.arc(w / 2, h / 2, r, 0, 7); }
+  else if (shape === 'heart') { const s = Math.min(w, h); ctx.save(); ctx.translate((w - s) / 2, (h - s) / 2); ctx.scale(s / 100, s / 100); ctx.moveTo(50, 92); ctx.bezierCurveTo(6, 62, 0, 36, 12, 20); ctx.bezierCurveTo(24, 6, 44, 8, 50, 26); ctx.bezierCurveTo(56, 8, 76, 6, 88, 20); ctx.bezierCurveTo(100, 36, 94, 62, 50, 92); ctx.restore(); }
+  else if (shape === 'rounded') roundRect(ctx, 0, 0, w, h, Math.min(w, h) * 0.16);
+  else ctx.rect(0, 0, w, h);
+  ctx.closePath(); ctx.clip();
+}
+function buildSticker(img, o) {
+  const max = 560, sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  let cv = document.createElement('canvas'); cv.width = Math.round(img.naturalWidth * sc); cv.height = Math.round(img.naturalHeight * sc);
+  cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+  if (o.cut) { cv = trim(removeBg(cv, o.tol)); }
+  if (o.shape !== 'none') { const w = cv.width, h = cv.height, s = Math.min(w, h); const sq = document.createElement('canvas'); const sw = o.shape === 'rounded' ? w : s, sh = o.shape === 'rounded' ? h : s; sq.width = sw; sq.height = sh; const x = sq.getContext('2d'); shapeClip(x, o.shape, sw, sh); x.drawImage(cv, (sw - w) / 2, (sh - h) / 2); cv = sq; }
+  if (o.border) {
+    const b = Math.max(6, Math.round(Math.max(cv.width, cv.height) * 0.035));
+    const out = document.createElement('canvas'); out.width = cv.width + b * 2; out.height = cv.height + b * 2;
+    const sil = document.createElement('canvas'); sil.width = cv.width; sil.height = cv.height; const sx = sil.getContext('2d'); sx.drawImage(cv, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#fff'; sx.fillRect(0, 0, sil.width, sil.height);
+    const x = out.getContext('2d'); x.shadowColor = 'rgba(61,36,51,.25)'; x.shadowBlur = b * 0.8; x.shadowOffsetY = b * 0.3;
+    for (let k = 0; k < 24; k++) { const a = (k / 24) * Math.PI * 2; x.drawImage(sil, b + Math.cos(a) * b, b + Math.sin(a) * b); }
+    x.shadowColor = 'transparent'; x.drawImage(cv, b, b); cv = out;
+  }
+  return cv;
+}
+async function importSticker() {
+  const files = await pickFiles(false); if (!files.length) return;
+  let img; try { img = await loadImage(files[0]); } catch (e) { toast(e.message); return; }
+  const o = { cut: false, tol: 42, shape: 'none', border: true };
+  const d = openSheet(`<h2>Make a sticker</h2><div class="pvw checker" id="spv"></div>
+  ${tog('cut', 'Remove background', 'Works best on a plain background', o.cut)}
+  <div id="tolRow" style="display:none"><label class="lbl" for="tol">How much to remove</label><input id="tol" type="range" min="10" max="120" value="${o.tol}" style="width:100%"></div>
+  <div class="lbl">Shape</div>${seg('shape', [['none', 'Original'], ['circle', 'Circle'], ['heart', 'Heart'], ['rounded', 'Rounded']], o.shape)}
+  ${tog('border', 'White border', 'Looks like a real sticker', o.border)}
+  <div class="row"><button class="btn alt" data-n>Cancel</button><button class="btn" data-y>${ic('check')}<span>Save sticker</span></button></div>`);
+  let cv = null, t = 0;
+  const redo = () => { clearTimeout(t); t = setTimeout(() => { cv = buildSticker(img, o); const box = $('#spv', d); box.innerHTML = ''; const im = new Image(); im.alt = 'Sticker preview'; im.src = cv.toDataURL('image/png'); box.appendChild(im); }, 60); };
+  $$('[data-tog]', d).forEach((b) => (b.onclick = () => { const k = b.dataset.tog; o[k] = !o[k]; b.setAttribute('aria-checked', String(o[k])); $('#tolRow', d).style.display = o.cut ? '' : 'none'; redo(); }));
+  $$('[data-seg]', d).forEach((b) => (b.onclick = () => { o.shape = b.dataset.v; $$('[data-seg]', d).forEach((x) => x.setAttribute('aria-pressed', String(x === b))); redo(); }));
+  $('#tol', d).oninput = (e) => { o.tol = +e.target.value; redo(); };
+  d.querySelector('[data-n]').onclick = () => closeSheet();
+  d.querySelector('[data-y]').onclick = async () => {
+    if (!cv) cv = buildSticker(img, o);
+    const src = cv.toDataURL('image/png'), st = { id: uid(), src, ar: cv.width / cv.height, created: Date.now() };
+    try { await MyStickers.put(st); } catch (e) { toast('Could not save the sticker'); return; }
+    closeSheet(); E.cat = 'mine'; await readyPics([{ t: 'image', src }]);
+    const cut = cutById(S.p.cut); addItem({ t: 'image', src, ar: st.ar, size: Math.min(cut.W, cut.H) * 0.3 }); renderPane(); toast('Sticker saved to ★ Mine', 1800);
+  };
+  redo();
 }
 async function finish() {
   const p = S.p; E.sel = -1; draw();
@@ -533,10 +720,10 @@ async function finish() {
 // ---------------- Done ----------------
 SCREENS.done = () => {
   const p = S.p;
-  main.innerHTML = `<section class="scr">${top('Your strip is ready')}
+  main.innerHTML = `<section class="scr">${top('Your strip is ready', 0, `<button class="ibtn" id="homeB" aria-label="Home">${ic('home')}</button>`)}
   <div class="printer"><div class="slot"><span class="logo">lingcam<i>.</i></span></div><div class="paper" id="paper"></div></div>
   <div class="acts col"><button class="act" id="save">${ic('download')}<span>${N.isAndroidApp() ? 'Save to gallery' : 'Save'}</span></button><button class="act hot" id="shr">${ic('share')}<span>Share</span></button><button class="act" id="gifb">${ic('gif')}<span>Make GIF</span></button></div>
-  <div class="foot col"><button class="btn alt" id="edit">${ic('pen')}<span>Edit</span></button><button class="btn" id="again" style="flex:1.4">New booth</button></div></section>`;
+  <div class="foot col"><button class="btn alt" id="edit">${ic('pen')}<span>Edit</span></button><button class="btn alt" id="homeB2">${ic('home')}<span>Home</span></button><button class="btn" id="again" style="flex:1.3">${ic('cam')}<span>New booth</span></button></div></section>`;
   (async () => {
     const cv = S.doneStrip || (await renderStrip(p, 1)); S.doneStrip = null;
     const img = new Image(); img.alt = 'Your lingcam strip'; img.src = cv.toDataURL('image/jpeg', 0.92); $('#paper').appendChild(img);
@@ -546,8 +733,10 @@ SCREENS.done = () => {
   $('#shr').onclick = () => shareSheet(p);
   $('#gifb').onclick = () => go('gif');
   $('#edit').onclick = () => { if (S.stack[S.stack.length - 2] === 'decorate') back(); else go('decorate'); };
-  $('#again').onclick = () => { S.p = newProject(); S.mode = 'camera'; go('home', { reset: true }); };
+  $('#again').onclick = () => { S.p = newProject(); S.mode = 'camera'; S.retake = null; E.reset(); go('cut', { reset: true }); S.stack = ['home', 'cut']; };
+  $('#homeB').onclick = goHome; $('#homeB2').onclick = goHome;
   toast('Saved to My strips', 1800);
+  setTimeout(confetti, 1900);
 };
 const fname = (p, ext, kind = 'strip') => `lingcam-${kind}-${dateText(p.created).replace(/\./g, '')}-${p.id.slice(-4)}.${ext}`;
 async function asset(p, fmt, onProg) {
@@ -612,7 +801,7 @@ async function makeLink(p, fmt) {
 // ---------------- GIF ----------------
 SCREENS.gif = () => {
   const p = S.p; S.gifStyle = S.gifStyle || 'boomerang'; S.gifSpeed = S.gifSpeed || 'normal';
-  main.innerHTML = `<section class="scr">${top('Make a GIF')}
+  main.innerHTML = `<section class="scr">${top('Make a GIF', 0, `<button class="ibtn" data-home aria-label="Home">${ic('home')}</button>`)}
   <div class="gif-box"><canvas id="gcv" width="10" height="10" aria-label="GIF preview"></canvas></div>
   <div class="gif-opts"><div class="lbl">Style</div>${seg('gstyle', [['loop', 'Loop'], ['boomerang', 'Boomerang'], ['flash', 'Flash']], S.gifStyle)}<div class="lbl">Speed</div>${seg('gspeed', [['slow', 'Slow'], ['normal', 'Normal'], ['fast', 'Fast']], S.gifSpeed)}</div>
   <div class="foot col"><button class="btn alt" id="gsave">${ic('download')}<span>Save</span></button><button class="btn" id="gshare" style="flex:1.4">${ic('share')}<span>Share GIF</span></button></div></section>`;
@@ -724,7 +913,7 @@ function start() {
   });
   N.onBack(() => back());
   if (!N.isApp()) { history.pushState({ lc: 1 }, ''); window.addEventListener('popstate', () => { if (back()) history.pushState({ lc: 1 }, ''); }); }
-  fontsReady();
+  fontsReady(); readyStickers();
   go('home', { reset: true });
   if (N.isApp()) setTimeout(() => checkUpdate(false), 2500);
   if (!N.isApp() && 'serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

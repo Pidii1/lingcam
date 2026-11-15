@@ -1,5 +1,5 @@
 // Lingcam offline cache
-const V = 'lingcam-1.0.0';
+const V = 'lingcam-1.1.0';
 const FILES = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/data.js', 'js/render.js', 'js/store.js', 'js/native.js', 'vendor/gifenc.esm.js', 'manifest.webmanifest', 'img/icon-192.png', 'img/icon-512.png',
   'fonts/fredoka-latin-600-normal.woff2', 'fonts/fredoka-latin-700-normal.woff2', 'fonts/caveat-latin-700-normal.woff2', 'fonts/dm-sans-latin-400-normal.woff2', 'fonts/dm-sans-latin-700-normal.woff2', 'fonts/special-elite-latin-400-normal.woff2', 'fonts/playfair-display-latin-700-italic.woff2'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
