@@ -1,11 +1,8 @@
 {
-  "version": "1.2.0",
+  "version": "1.2.1",
   "notes": [
-    "28 new photo booth frames: classic booth sign, magazine cover, newspaper, camcorder, 35mm film, polaroids, receipt, ticket, old computer, now playing, boarding pass, calendar and more",
-    "Frames can now change the photo shape (hearts, arches, tickets) and have headers",
-    "Photo booth props: glasses, mustache, crowns, bunny and cat ears, halo, horns, blush",
-    "Speech bubbles and \"me / bestie\" arrow labels"
+    "Frame, cut and filter previews now show sample photos, and switch to your own latest photos once you have made a strip"
   ],
-  "android": "Lingcam-1_2_0.apk",
+  "android": "Lingcam-1_2_1.apk",
   "windows": "https://github.com/Pidii1/lingcam/releases/latest/download/Lingcam-Setup.msi"
 }

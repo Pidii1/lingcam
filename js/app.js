@@ -4,7 +4,7 @@ import { loadImg, stickerImg, readyStickers, readyPics, fontsReady, filtered, dr
 import { Strips, Settings, MyStickers } from './store.js';
 import * as N from './native.js';
 
-export const VERSION = '1.2.0';
+export const VERSION = '1.2.1';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -28,6 +28,17 @@ const P = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>', copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>', plus: '<path d="M12 5v14M5 12h14"/>',
 };
 const ic = (n) => `<svg viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
+
+// ---------------- sample photos for previews ----------------
+const SAMPLES = [1, 2, 3, 4, 5, 6].map((i) => `img/samples/s${i}.jpg`);
+let sampleImgs = [];
+const samplesReady = Promise.all(SAMPLES.map((u) => loadImg(u).catch(() => null))).then((a) => (sampleImgs = a.filter(Boolean)));
+// once you have taken a strip, previews use your own latest photos instead
+let mineImgs = [];
+async function loadMine() {
+  try { const all = await Strips.list(); const ph = []; for (const r of all) { for (const u of r.photos || []) if (u && ph.length < 6) ph.push(u); if (ph.length >= 6) break; } mineImgs = (await Promise.all(ph.map((u) => loadImg(u).catch(() => null)))).filter(Boolean); } catch (e) {}
+}
+const sampleFor = (n, off = 0) => { const src = mineImgs.length ? mineImgs : sampleImgs; return Array.from({ length: n }, (_, i) => src[(i + off) % src.length] || null); };
 
 // ---------------- state ----------------
 const S = { stack: [], p: null, mode: 'camera', retake: null, stream: null, facing: 'user', tok: 0, busy: false, sheet: null, update: null };
@@ -61,7 +72,7 @@ function top(title, step, right = '') {
 }
 function miniStrip(n, bg, t0, cls = '', ink = C.muted) {
   const tones = [['#f6d4dc', '#c98b9f'], ['#fbe6b8', '#cf9f6b'], ['#f3cfe0', '#b07a96'], ['#fde8cf', '#c7916f']];
-  return `<div class="strip ${cls}" style="background:${bg}">${Array.from({ length: n }, (_, i) => { const [a, b] = tones[(t0 + i) % 4]; return `<div class="ph" style="--a:${a};--b:${b};${n === 4 ? 'height:50px;width:74px' : ''}"></div>`; }).join('')}<div class="ft" style="color:${ink}"><b>lingcam<i>.</i></b><span>${dateText()}</span></div></div>`;
+  return `<div class="strip ${cls}" style="background:${bg}">${Array.from({ length: n }, (_, i) => { const [a, b] = tones[(t0 + i) % 4]; return `<div class="ph img" style="background-image:url(${SAMPLES[(t0 + i) % SAMPLES.length]});${n === 4 ? 'height:50px;width:74px' : ''}"></div>`; }).join('')}<div class="ft" style="color:${ink}"><b>lingcam<i>.</i></b><span>${dateText()}</span></div></div>`;
 }
 // small picture of a strip layout with placeholder or real photos
 function thumb(p, maxW, maxH, imgs = []) {
@@ -69,7 +80,9 @@ function thumb(p, maxW, maxH, imgs = []) {
   const sc = Math.min(maxW / cut.W, maxH / cut.H);
   const cv = document.createElement('canvas'); cv.width = Math.round(cut.W * sc * dpr); cv.height = Math.round(cut.H * sc * dpr);
   cv.style.width = Math.round(cut.W * sc) + 'px'; cv.style.height = Math.round(cut.H * sc) + 'px';
-  const ctx = cv.getContext('2d'); ctx.scale(sc * dpr, sc * dpr); drawBase(ctx, p, imgs);
+  const ctx = cv.getContext('2d'); ctx.scale(sc * dpr, sc * dpr);
+  const use = imgs && imgs.some(Boolean) ? imgs : sampleFor(cut.cells.length, (p.frame || '').length);
+  drawBase(ctx, p, use);
   return cv;
 }
 function readImage(file, max = 1600) {
@@ -168,6 +181,7 @@ SCREENS.home = () => {
 // ---------------- 1 Cut ----------------
 SCREENS.cut = () => {
   const p = S.p;
+  if (!sampleImgs.length) samplesReady.then(() => { if (S.stack[S.stack.length - 1] === 'cut') { SCREENS.cut(); rebind(); } });
   main.innerHTML = `<section class="scr">${top('Choose your cut', 1)}<div class="scroll"><div class="grid2" role="group" aria-label="Cuts">${CUTS.map((c, i) => `<button class="card" style="--d:${i * 40}ms" data-cut="${c.id}" aria-pressed="${p.cut === c.id}"><div class="pv"></div><b>${esc(c.name)}</b><small>${esc(c.sub)}</small></button>`).join('')}</div></div>
   <div class="foot col"><button class="btn" id="next">Next: pick a frame</button></div></section>`;
   $$('[data-cut]').forEach((b) => {
@@ -196,7 +210,7 @@ SCREENS.frame = () => {
     });
   };
   $$('[data-cat]').forEach((b) => (b.onclick = () => { cat = b.dataset.cat; $$('[data-cat]').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); draw(); }));
-  draw(); readyStickers().then(() => { if ($('#fg')) draw(); });
+  draw(); Promise.all([readyStickers(), samplesReady]).then(() => { if ($('#fg')) draw(); });
   $('#next').onclick = async () => {
     if (S.mode === 'upload') { if (await uploadInto(null)) go('review'); }
     else go('camera');
@@ -221,7 +235,7 @@ SCREENS.camera = () => {
   <div class="cam-top"><button class="ibtn" data-back aria-label="Back">${ic('back')}</button><div class="slots" id="slots" aria-hidden="true">${cut.cells.map(() => '<i></i>').join('')}</div><button class="ibtn" id="bset" aria-label="Booth settings">${ic('settings')}</button></div>
   <div class="cam-body"><div class="vf-wrap" id="vfw"><div class="vf" id="vf"><video id="vid" playsinline muted autoplay></video><div class="tag" style="left:12px" id="pose"></div><div class="tag" style="right:12px" id="ftag">${esc(filterById(p.filter).name)}</div><div class="count" id="count" aria-live="assertive"></div></div></div>
   <div class="live"><small>Live strip</small><div id="live"></div><small style="font-weight:400;opacity:.8">Space bar = snap</small></div></div>
-  <div class="fl-row" role="group" aria-label="Filters">${FILTERS.map((f, i) => `<button class="fl" data-f="${f.id}" aria-pressed="${p.filter === f.id}"><span class="th"><div class="ph" style="--a:#f6d4dc;--b:#c98b9f;filter:${f.css}"></div></span>${esc(f.name)}</button>`).join('')}</div>
+  <div class="fl-row" role="group" aria-label="Filters">${FILTERS.map((f, i) => `<button class="fl" data-f="${f.id}" aria-pressed="${p.filter === f.id}"><span class="th"><img alt="" src="${SAMPLES[0]}" style="filter:${f.css}"></span>${esc(f.name)}</button>`).join('')}</div>
   <div class="cam-ctl"><button class="ibtn" id="tmr" aria-label="Countdown">${ic('timer')}<span id="tmrv">${set.countdown}s</span></button><button class="shutter" id="shut" aria-label="Take photos"></button><button class="ibtn" id="flipb" aria-label="Switch camera">${ic('flip')}</button></div>
   </section>`;
   const vid = $('#vid');
@@ -624,7 +638,7 @@ function renderPane() {
     const cap = $('#cap'); cap.oninput = () => { if (!E.typing) { snap(); E.typing = true; } p.caption = cap.value; rebuildBase(); }; cap.onblur = () => (E.typing = false);
   } else if (E.tab === 'filter') {
     pane.innerHTML = `<div class="lbl">Filter for all photos</div><div class="fl-row light" style="padding:0;flex-wrap:wrap" role="group" aria-label="Filters">${FILTERS.map((f) => `<button class="fl" data-fl="${f.id}" aria-pressed="${p.filter === f.id}"><span class="th"></span>${esc(f.name)}</button>`).join('')}</div>`;
-    const src = E.imgs.find(Boolean);
+    const src = E.imgs.find(Boolean) || sampleImgs[0];
     let small = null;
     if (src) { small = document.createElement('canvas'); small.width = small.height = 112; const x = small.getContext('2d'); const iw = src.naturalWidth, ih = src.naturalHeight, m = Math.min(iw, ih); x.drawImage(src, (iw - m) / 2, (ih - m) / 2, m, m, 0, 0, 112, 112); }
     $$('[data-fl]', pane).forEach((b) => {
@@ -717,7 +731,7 @@ async function finish() {
     const strip = await renderStrip(p, 1);
     const tw = 260, th = Math.round(strip.height * tw / strip.width), t = document.createElement('canvas'); t.width = tw; t.height = th; t.getContext('2d').drawImage(strip, 0, 0, tw, th);
     p.thumb = t.toDataURL('image/jpeg', 0.85); p.updated = Date.now(); p.mode = S.mode;
-    await Strips.put(clone(p));
+    await Strips.put(clone(p)); loadMine();
     S.doneStrip = strip;
     go('done');
   } catch (e) { console.error(e); toast('Could not save your strip. Your phone may be out of space.'); btn.disabled = false; btn.textContent = 'Done'; }
@@ -919,7 +933,7 @@ function start() {
   });
   N.onBack(() => back());
   if (!N.isApp()) { history.pushState({ lc: 1 }, ''); window.addEventListener('popstate', () => { if (back()) history.pushState({ lc: 1 }, ''); }); }
-  fontsReady(); readyStickers();
+  fontsReady(); readyStickers(); loadMine();
   go('home', { reset: true });
   if (N.isApp()) setTimeout(() => checkUpdate(false), 2500);
   if (!N.isApp() && 'serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

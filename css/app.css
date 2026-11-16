@@ -357,3 +357,6 @@ a { color: var(--hot); }
 .paper img { animation: printOut 2.2s cubic-bezier(.3,.6,.3,1) both, sway 3s ease-in-out 2.3s infinite; transform-origin: top center; }
 @keyframes sway { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(1.2deg); } }
 .pane > * { flex-shrink: 0; }
+
+.ph.img { background-size: cover; background-position: center; }
+.ph.img::before, .ph.img::after { display: none; }
